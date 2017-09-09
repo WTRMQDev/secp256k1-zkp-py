@@ -112,8 +112,6 @@ int secp256k1_pedersen_commitment_serialize(
     const secp256k1_pedersen_commitment* commit
 );
 
-/** Initialize a context for usage with Pedersen commitments. */
-void secp256k1_pedersen_context_initialize(secp256k1_context* ctx);
 
 /** Generate a pedersen commitment.
  *  Returns 1: Commitment successfully created.
@@ -218,8 +216,7 @@ int secp256k1_pedersen_blind_generator_blind_sum(
   size_t n_inputs
 );
 
-/** Initialize a context for usage with Pedersen commitments. */
-void secp256k1_rangeproof_context_initialize(secp256k1_context* ctx);
+
 
 /** Verify a proof that a committed value is within a range.
  * Returns 1: Value is within the range [0..2^64), the specifically proven range is in the min/max value outputs.
