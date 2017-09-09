@@ -37,7 +37,7 @@ _base = [Source(absolute("_cffi_build/secp256k1.h"), "#include <secp256k1.h>", )
 _modules = {
     'ecdh': Source(absolute("_cffi_build/secp256k1_ecdh.h"), "#include <secp256k1_ecdh.h>", ),
     'recovery': Source(absolute("_cffi_build/secp256k1_recovery.h"), "#include <secp256k1_recovery.h>", ),
-    'schnorr': Source(absolute("_cffi_build/secp256k1_schnorr.h"), "#include <secp256k1_schnorr.h>", ),
+#    'schnorr': Source(absolute("_cffi_build/secp256k1_schnorr.h"), "#include <secp256k1_schnorr.h>", ),
     'rangeproof': Source(absolute("_cffi_build/secp256k1_rangeproof.h"), "#include <secp256k1_rangeproof.h>", ),
 }
 
