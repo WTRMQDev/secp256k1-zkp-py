@@ -411,6 +411,78 @@ class GeneratorOnCurve(Base):
       self.generator = generator
       return generator     
 
+
+
+class PedersenCommitment(Base):
+    # additional_generator is (generator, is_raw?) tuple
+    def __init__(self, commitment=None, raw=False, flags=ALL_FLAGS, ctx=None, blinded_generator=None):
+        Base.__init__(self, ctx, flags)
+        if commitment is not None:
+            if raw:
+                if not isinstance(commitment, bytes):
+                    raise TypeError('raw commmitment must be bytes')
+                self.commitment = self.deserialize(commitment)
+            else:
+                if not isinstance(commitment, ffi.CData):
+                    raise TypeError('commitment must be an internal object')
+                assert ffi.typeof(commitment) is ffi.typeof('secp256k1_pedersen_commitment *')
+                self.commitment = commitment
+        else:
+            self.commitment = None
+        if blinded_generator:
+          assert isinstance(blinded_generator, GeneratorOnCurve)
+        self.blinded_generator=blinded_generator
+
+    def serialize(self):
+        assert self.commitment, "No commitment key defined"
+
+        _len = 33
+        ret_buffer = ffi.new('unsigned char [%d]' % _len)
+
+        serialized = lib.secp256k1_pedersen_commitment_serialize(
+            self.ctx, ret_buffer, self.commitment)
+        assert serialized == 1 # well, useless assert, but let it be
+
+        return bytes(ffi.buffer(ret_buffer, _len))
+
+    def deserialize(self, commitment_ser):
+        if not len(commitment_ser)==33:
+            raise Exception("unknown pedersen commitment size expected 33")
+
+        commitment = ffi.new('secp256k1_pedersen_commitment *')
+
+        res = lib.secp256k1_pedersen_commitment_parse(
+            self.ctx, commitment, commitment_ser, )
+        if not res:
+            raise Exception("invalid pedersen commitment")
+
+        self.commitment = commitment
+        return commitment
+
+    def create(self, value, blinding_factor):
+        assert self.blinded_generator
+        if not isinstance( blinding_factor, bytes) or not len(blinding_factor)==32:
+            raise TypeError('blinding_factor should be 32 bytes')
+        self.blinding_factor = blinding_factor
+        if not isinstance(value, int) or value<0 or value>2**64-1:
+            raise TypeError('blinding_factor should be 32 bytes')
+        self.value = value
+        commitment = ffi.new('secp256k1_pedersen_commitment *')
+
+        res = lib.secp256k1_pedersen_commit( self.ctx, 
+        commitment, blinding_factor, value, 
+        self.blinded_generator.generator
+        ) 
+        if res:
+          self.commitment=commitment
+        return self.commitment
+
+
+    def ready_to_sign(self):
+      return self.blinded_generator.generator and self.blinding_factor and self.value
+
+        
+
 def _hash32(msg, raw, digest):
     if not raw:
         msg32 = digest(msg).digest()
