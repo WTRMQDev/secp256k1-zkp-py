@@ -399,7 +399,7 @@ class GeneratorOnCurve(Base):
 
     def _from_seed(self, seed):
       if not isinstance(seed, bytes) or not len(seed)==32:
-            raise Exception("Seed should be 33 bytes")
+            raise Exception("Seed should be 32 bytes")
 
       generator = ffi.new('secp256k1_generator *')
 
