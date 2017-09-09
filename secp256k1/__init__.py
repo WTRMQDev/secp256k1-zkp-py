@@ -351,6 +351,65 @@ class PrivateKey(Base, ECDSA):
         return raw_sig
 
 
+class GeneratorOnCurve(Base):
+    # additional_generator is (generator, is_raw?) tuple
+    def __init__(self, generator=None, raw=False, flags=ALL_FLAGS, ctx=None):
+        Base.__init__(self, ctx, flags)
+        if generator is not None:
+            if raw:
+                if not isinstance(generator, bytes):
+                    raise TypeError('raw generator must be bytes')
+                self.generator = self.deserialize(generator)
+            else:
+                if not isinstance(generator, ffi.CData):
+                    raise TypeError('generator must be an internal object')
+                assert ffi.typeof(generator) is ffi.typeof('secp256k1_generator *')
+                self.generator = generator
+        else:
+            self.generator = None
+
+    def serialize(self):
+        assert self.generator, "No generator defined"
+
+        _len = 33
+        ret_buffer = ffi.new('unsigned char [%d]' % _len)
+
+        serialized = lib.secp256k1_generator_serialize(
+            self.ctx, ret_buffer, self.generator)
+        assert serialized == 1 # well, useless assert, but let it be
+
+        return bytes(ffi.buffer(ret_buffer, _len))
+
+    def deserialize(self, generator_ser):
+        if not len(generator_ser)==33:
+            raise Exception("unknown generator size expected 33")
+
+        generator = ffi.new('secp256k1_generator *')
+
+        res = lib.secp256k1_generator_parse(
+            self.ctx, generator, generator_ser )
+        if not res:
+            raise Exception("invalid generator")
+
+        self.generator = generator
+        return generator
+
+    def _from_point(self, point):
+      pass #TODO
+
+    def _from_seed(self, seed):
+      if not isinstance(seed, bytes) or not len(seed)==32:
+            raise Exception("Seed should be 33 bytes")
+
+      generator = ffi.new('secp256k1_generator *')
+
+      res = lib.secp256k1_generator_generate(
+            self.ctx, generator, seed )
+      if not res:
+            raise Exception("invalid generator")
+
+      self.generator = generator
+      return generator     
 
 def _hash32(msg, raw, digest):
     if not raw:
