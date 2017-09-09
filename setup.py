@@ -251,12 +251,12 @@ class develop(_develop):
 
 
 setup(
-    name="secp256k1",
+    name="secp256k1_zkp",
     version="0.13.2",
 
     description='FFI bindings to libsecp256k1',
     url='https://github.com/ludbb/secp256k1-py',
-    author='Ludvig Broberg',
+    author='Ludvig Broberg, Quirinus Quirrell',
     author_email='lud@tutanota.com',
     license='MIT',
 
@@ -265,7 +265,7 @@ setup(
     tests_require=['pytest==2.8.7'],
 
     packages=find_packages(exclude=('_cffi_build', '_cffi_build.*', 'libsecp256k1')),
-    ext_package="secp256k1",
+    ext_package="secp256k1_zkp",
     cffi_modules=[
         "_cffi_build/build.py:ffi"
     ],
