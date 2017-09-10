@@ -481,6 +481,71 @@ class PedersenCommitment(Base):
     def ready_to_sign(self):
       return self.blinded_generator.generator and self.blinding_factor and self.value
 
+
+
+class RangeProof(Base):
+  def __init__(self, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
+    Base.__init__(self, ctx, flags)
+    if proof is not None:
+      assert isinstance(proof, bytes)
+    self.proof = proof
+    if pedersen_commitment is not None:
+      assert isinstance(pedersen_commitment, PedersenCommitment)
+    self.pedersen_commitment = pedersen_commitment
+    if additional_data is not None:
+      assert isinstance(additional_data, bytes)
+    self.additional_data = additional_data
+
+  def verify(self, _range=(0,2**64-1) ):
+    assert self.pedersen_commitment
+    assert self.proof
+    assert self.pedersen_commitment.blinded_generator.generator
+    (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
+    min_value, max_value = [ffi.new("uint64_t *")]*2
+    res = lib.secp256k1_rangeproof_verify(
+            self.ctx, min_value, max_value,
+            self.pedersen_commitment.commitment,
+            self.proof, len(self.proof),
+            ad, adl, self.pedersen_commitment.blinded_generator.generator)
+    print(min_value[0], max_value[0])
+    return res
+
+  def rewind(self):
+    pass #TODO
+
+  def _sign(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
+    assert self.pedersen_commitment and self.pedersen_commitment.ready_to_sign()
+
+    nonce = nonce if nonce else os.urandom(32)
+    if not isinstance(nonce, bytes) or len(nonce)!=32:
+      raise TypeError('nonce should be 32 bytes')
+
+    _len = 5134
+    proof_buffer = ffi.new('unsigned char [%d]' % _len)
+    proof_buffer_len = ffi.new("size_t *")
+    proof_buffer_len[0] = _len 
+
+    (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
+    res = lib.secp256k1_rangeproof_sign( 
+            self.ctx, proof_buffer, proof_buffer_len, min_value,
+            self.pedersen_commitment.commitment, 
+            self.pedersen_commitment.blinding_factor, 
+            nonce, exp, concealed_bits,
+            self.pedersen_commitment.value, 
+            ffi.cast("char *", 0), 0,
+            ad, adl, 
+            self.pedersen_commitment.blinded_generator.generator)
+    if not res:
+      raise Exception("Cant generate rangeproof")
+    self.proof = bytes(ffi.buffer(proof_buffer, proof_buffer_len[0])) 
+    self.nonce = nonce
+    return self.proof
+            
+
+  def info(self):
+    pass #TODO
+
+
         
 
 def _hash32(msg, raw, digest):
