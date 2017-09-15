@@ -260,6 +260,28 @@ class PublicKey(Base, ECDSA):
 
         return bytes(ffi.buffer(result, 32))
 
+    def __add__(self, pubkey2):
+        if isinstance(pubkey2, PublicKey):
+            new_pub= PublicKey()
+            new_pub.combine([self.public_key, pubkey2.public_key])
+            return new_pub
+        else:
+            raise TypeError("Cant add pubkey and %s"%pubkey.__class__)
+
+    def __neg__(self):
+        serialized=self.serialize()
+        first_byte, remainder = serialized[:1], serialized[1:]
+        first_byte = {b'\x03':b'\x02', b'\x02':b'\x03'}[first_byte]
+        return PublicKey(first_byte+ remainder, raw=True)
+
+    def __sub__(self, pubkey2):
+        if isinstance(pubkey2, PublicKey):
+            return self + (-pubkey2)
+        else:
+            raise TypeError("Cant add pubkey and %s"%pubkey.__class__)
+
+            
+
 
 class PrivateKey(Base, ECDSA):
 
