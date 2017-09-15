@@ -266,7 +266,7 @@ class PublicKey(Base, ECDSA):
             new_pub.combine([self.public_key, pubkey2.public_key])
             return new_pub
         else:
-            raise TypeError("Cant add pubkey and %s"%pubkey.__class__)
+            raise TypeError("Cant add pubkey and %s"%pubkey2.__class__)
 
     def __neg__(self):
         serialized=self.serialize()
@@ -278,8 +278,27 @@ class PublicKey(Base, ECDSA):
         if isinstance(pubkey2, PublicKey):
             return self + (-pubkey2)
         else:
-            raise TypeError("Cant add pubkey and %s"%pubkey.__class__)
+            raise TypeError("Cant add pubkey and %s"%pubkey2.__class__)
 
+def _int_to_bytes(n, length, endianess='big'):
+    try:
+        return n.to_bytes(length, endianess)
+    except:
+        h = '%x' % n
+        s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
+        return s if endianess == 'big' else s[::-1]
+
+def _bytes_to_int(bt, endianess='big'):
+    try:
+        return int.from_bytes(bt, endianess)
+    except:
+        bt = bt if endianess == 'big' else bt[::-1]
+        bt = bytearray(bt)
+        n=0
+        for m in bt:
+          n *= 256
+          n+=int(m)
+        return n
             
 
 
@@ -371,6 +390,25 @@ class PrivateKey(Base, ECDSA):
         assert signed == 1
 
         return raw_sig
+
+    def __add__(self, privkey2):
+      if not isinstance(privkey2, PrivateKey):
+        raise TypeError("Cant summarize privkey and %s"%privkey2.__class__)
+      return PrivateKey(self.tweak_add(privkey2.private_key), raw = True )
+
+    def __mul__(self, privkey2):
+      if isinstance(privkey2, PrivateKey):
+        return PrivateKey(self.tweak_mul(privkey2.private_key), raw = True )
+      else:
+        return PrivateKey(self.tweak_mul(_int_to_bytes(privkey2, 32)), raw = True  )
+
+    def __neg__(self):
+      order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 #order of secp256k1 group
+      neg_num=_int_to_bytes(order-_bytes_to_int(self.private_key, 'big'), 32, 'big')
+      return PrivateKey(neg_num, raw=True)
+
+    def __sub__(self, privkey2):
+      return self + (-privkey2)
 
 
 class GeneratorOnCurve(Base):
