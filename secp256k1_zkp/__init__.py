@@ -280,6 +280,20 @@ class PublicKey(Base, ECDSA):
         else:
             raise TypeError("Cant add pubkey and %s"%pubkey2.__class__)
 
+    def to_pedersen_commitment(self):
+        """Generate pedersen commitment r*G+0*H from r*G"""
+        assert self.public_key
+
+        commitment = ffi.new('secp256k1_pedersen_commitment *')
+
+        res = lib.secp256k1_pedersen_commitment_parse_from_pubkey(
+            self.ctx, commitment, self.public_key)
+        if not res:
+            raise Exception('failed to create commitment')
+
+        return PedersenCommitment(commitment, raw=False)
+
+
 def _int_to_bytes(n, length, endianess='big'):
     try:
         return n.to_bytes(length, endianess)
@@ -541,7 +555,17 @@ class PedersenCommitment(Base):
     def ready_to_sign(self):
       return self.blinded_generator.generator and self.blinding_factor and self.value
 
+    def to_public_key(self):
+        """NOTE if value or blinding factor both are non-zero result of this function is not public key, cause it hasn't private key"""
+        assert self.commitment
 
+        pubkey = ffi.new('secp256k1_pubkey *')
+
+        res = lib.secp256k1_pedersen_commitment_save_to_pubkey(pubkey, self.commitment)
+        if not res:
+            raise Exception('failed to create pubkey')
+
+        return PublicKey(pubkey, raw=False)
 
 class RangeProof(Base):
   def __init__(self, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
