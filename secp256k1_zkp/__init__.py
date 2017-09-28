@@ -555,6 +555,25 @@ class PedersenCommitment(Base):
     def ready_to_sign(self):
       return self.blinded_generator.generator and self.blinding_factor and self.value
 
+
+    def verify_sum(self, positive_commitments, negative_commitments):
+        pcnt = len(positive_commitments)
+        ncnt = len(negative_commitments)
+        assert (pcnt and ncnt)
+        positive_commitments_data = [commit.commitment for commit in positive_commitments]
+        negative_commitments_data = [commit.commitment for commit in negative_commitments]
+
+        for item in positive_commitments_data:
+            assert ffi.typeof(item) is ffi.typeof('secp256k1_pedersen_commitment *')
+
+        for item in negative_commitments_data:
+            assert ffi.typeof(item) is ffi.typeof('secp256k1_pedersen_commitment *')
+
+        res = lib.secp256k1_pedersen_verify_tally(
+            self.ctx, positive_commitments_data, pcnt,
+                      negative_commitments_data, ncnt)
+        return bool(res)
+
     def to_public_key(self):
         """NOTE if value or blinding factor both are non-zero result of this function is not public key, cause it hasn't private key"""
         assert self.commitment
