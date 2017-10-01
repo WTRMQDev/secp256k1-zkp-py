@@ -150,6 +150,9 @@ class ECDSA:  # Use as a mixin; instance.ctx is assumed to exist.
         else:
             raise Exception('failed to parse ECDSA compact sig')
 
+    def ecdsa_recoverable_deserialize_raw(self, recover_sig):
+        return self.ecdsa_recoverable_deserialize(recover_sig[1:], _bytes_to_int(recover_sig[0]))
+
     def ecdsa_recoverable_convert(self, recover_sig):
         if not HAS_RECOVERABLE:
             raise Exception("secp256k1_recovery not enabled")
