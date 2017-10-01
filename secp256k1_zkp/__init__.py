@@ -129,6 +129,10 @@ class ECDSA:  # Use as a mixin; instance.ctx is assumed to exist.
 
         return bytes(ffi.buffer(output, outputlen)), recid[0]
 
+    def ecdsa_recoverable_serialize_raw(self, recover_sig):
+        sig, _id = self.ecdsa_recoverable_serialize(recover_sig)
+        return _int_to_bytes(_id,1,'big')+sig
+
     def ecdsa_recoverable_deserialize(self, ser_sig, rec_id):
         if not HAS_RECOVERABLE:
             raise Exception("secp256k1_recovery not enabled")
