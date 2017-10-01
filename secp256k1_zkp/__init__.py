@@ -610,7 +610,6 @@ class RangeProof(Base):
             self.pedersen_commitment.commitment,
             self.proof, len(self.proof),
             ad, adl, self.pedersen_commitment.blinded_generator.generator)
-    print(min_value[0], max_value[0])
     return res
 
   def rewind(self):
