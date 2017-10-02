@@ -287,7 +287,7 @@ class PublicKey(Base, ECDSA):
         else:
             raise TypeError("Cant add pubkey and %s"%pubkey2.__class__)
 
-    def to_pedersen_commitment(self):
+    def to_pedersen_commitment(self, flags=ALL_FLAGS, ctx=None, blinded_generator=None):
         """Generate pedersen commitment r*G+0*H from r*G"""
         assert self.public_key
 
@@ -298,7 +298,7 @@ class PublicKey(Base, ECDSA):
         if not res:
             raise Exception('failed to create commitment')
 
-        return PedersenCommitment(commitment, raw=False)
+        return PedersenCommitment(commitment, raw=False, flags=flags, ctx=ctx, blinded_generator=blinded_generator)
 
 
 def _int_to_bytes(n, length, endianess='big'):
