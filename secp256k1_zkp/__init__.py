@@ -151,7 +151,7 @@ class ECDSA:  # Use as a mixin; instance.ctx is assumed to exist.
             raise Exception('failed to parse ECDSA compact sig')
 
     def ecdsa_recoverable_deserialize_raw(self, recover_sig):
-        return self.ecdsa_recoverable_deserialize(recover_sig[1:], _bytes_to_int(recover_sig[0]))
+        return self.ecdsa_recoverable_deserialize(recover_sig[1:], _bytes_to_int(recover_sig[0:1]))
 
     def ecdsa_recoverable_convert(self, recover_sig):
         if not HAS_RECOVERABLE:
@@ -611,7 +611,7 @@ class RangeProof(Base):
     assert self.proof
     assert self.pedersen_commitment.blinded_generator.generator
     (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
-    min_value, max_value = [ffi.new("uint64_t *")]*2
+    min_value, max_value = ffi.new("uint64_t *"), ffi.new("uint64_t *")
     res = lib.secp256k1_rangeproof_verify(
             self.ctx, min_value, max_value,
             self.pedersen_commitment.commitment,
@@ -651,8 +651,16 @@ class RangeProof(Base):
     return self.proof
             
 
+
+
   def info(self):
-    pass #TODO
+    exp, mantissa = [ffi.new("int *") for i in range(2)]
+    min_value, max_value = [ffi.new("uint64_t *") for i in range(2)]
+    res = lib.secp256k1_rangeproof_info(
+              self.ctx, exp, mantissa,
+              min_value, max_value, self.proof, len(self.proof)
+              )
+    return exp[0], mantissa[0], min_value[0], max_value[0]
 
 
         
