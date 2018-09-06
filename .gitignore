@@ -7,6 +7,7 @@ _libsecp256k1*
 .coverage
 .eggs/
 .cache/
-*.egg
+*.egg*
+rebuild
 htmlcov
 libsecp256k1
