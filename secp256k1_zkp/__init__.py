@@ -269,7 +269,7 @@ class PublicKey(Base, ECDSA):
 
     def __add__(self, pubkey2):
         if isinstance(pubkey2, PublicKey):
-            new_pub= PublicKey()
+            new_pub= PublicKey(ctx=self.ctx)
             new_pub.combine([self.public_key, pubkey2.public_key])
             return new_pub
         else:
@@ -591,7 +591,7 @@ class PedersenCommitment(Base):
         if not res:
             raise Exception('failed to create pubkey')
 
-        return PublicKey(pubkey, raw=False)
+        return PublicKey(pubkey, raw=False, ctx=self.ctx)
 
 class RangeProof(Base):
   def __init__(self, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
