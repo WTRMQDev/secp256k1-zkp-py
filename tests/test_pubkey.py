@@ -2,7 +2,7 @@ import os
 import json
 from io import StringIO
 
-import secp256k1
+import secp256k1_zkp as secp256k1
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, 'data')

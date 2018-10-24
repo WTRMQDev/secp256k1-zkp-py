@@ -1,6 +1,6 @@
 import pytest
 import hashlib
-import secp256k1
+import secp256k1_zkp as secp256k1
 
 def test_privkey():
     with pytest.raises(TypeError):

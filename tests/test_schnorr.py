@@ -1,6 +1,6 @@
 import pytest
 
-import secp256k1
+import secp256k1_zkp as secp256k1
 
 def test_schnorr_simple():
     if not secp256k1.HAS_SCHNORR:
