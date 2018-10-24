@@ -34,7 +34,7 @@ from setup_support import absolute, build_flags, has_system_lib
 
 # Version of libsecp256k1 to download if none exists in the `libsecp256k1`
 # directory
-LIB_TARBALL_URL = "https://github.com/ElementsProject/secp256k1-zkp/archive/f73e50653a936e5f8636454af1b799b1c56fc2dd.tar.gz"
+LIB_TARBALL_URL = "https://github.com/WTRMQDev/secp256k1_zkp/archive/dc77c2830bf29f9bea56c78e2b96cecc9c3f7974.tar.gz"
 
 
 # We require setuptools >= 3.3
@@ -252,12 +252,12 @@ class develop(_develop):
 
 setup(
     name="secp256k1_zkp",
-    version="0.13.2",
+    version="0.14.0",
 
-    description='FFI bindings to libsecp256k1',
-    url='https://github.com/ludbb/secp256k1-py',
+    description='FFI bindings to libsecp256k1_zkp',
+    url='https://github.com/WTRMQDev/secp256k1-zkp-py',
     author='Ludvig Broberg, Quirinus Quirrell',
-    author_email='lud@tutanota.com',
+    author_email='TetsuwanAtomu@tuta.io',
     license='MIT',
 
     setup_requires=['cffi>=1.3.0', 'pytest-runner==2.6.2'],
