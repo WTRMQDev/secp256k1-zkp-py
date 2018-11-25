@@ -195,6 +195,12 @@ class build_clib(_build_clib):
             "--enable-module-ecdh",
             "--enable-module-generator",
             "--enable-module-rangeproof",
+            "--enable-module-commitment",
+            "--enable-module-points",
+            "--enable-module-bulletproof",
+            "--disable-tests",
+            "--disable-exhaustive-tests",
+            "--disable-benchmark",
             "--prefix",
             os.path.abspath(self.build_clib),
         ]
