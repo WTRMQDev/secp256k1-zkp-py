@@ -39,6 +39,8 @@ _modules = {
     'recovery': Source(absolute("_cffi_build/secp256k1_recovery.h"), "#include <secp256k1_recovery.h>", ),
 #    'schnorr': Source(absolute("_cffi_build/secp256k1_schnorr.h"), "#include <secp256k1_schnorr.h>", ),
     'rangeproof': Source(absolute("_cffi_build/secp256k1_rangeproof.h"), "#include <secp256k1_rangeproof.h>", ),
+    'points': Source(absolute("_cffi_build/secp256k1_points.h"), "#include <secp256k1_points.h>", ),
+    'bulltetproofs': Source(absolute("_cffi_build/secp256k1_bulletproofs.h"), "#include <secp256k1_bulletproofs.h>", ),
 }
 
 
