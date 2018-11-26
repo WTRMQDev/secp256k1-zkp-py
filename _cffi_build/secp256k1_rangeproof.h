@@ -10,8 +10,11 @@
  *  representation, so they can be memcmp'ed.
  */
 typedef struct {
-    unsigned char data[33];
+    unsigned char data[64];
 } secp256k1_generator;
+
+extern const secp256k1_generator secp256k1_generator_const_g;
+extern const secp256k1_generator secp256k1_generator_const_h;
 
 /** Parse a 33-byte generator byte sequence into a generator object.
  *
@@ -81,7 +84,7 @@ int secp256k1_generator_generate_blinded(
 
 
 typedef struct {
-    unsigned char data[33];
+    unsigned char data[64];
 } secp256k1_pedersen_commitment;
 
 
@@ -131,7 +134,8 @@ int secp256k1_pedersen_commit(
   secp256k1_pedersen_commitment *commit,
   const unsigned char *blind,
   uint64_t value,
-  const secp256k1_generator *gen
+  const secp256k1_generator *value_gen,
+  const secp256k1_generator *blind_gen
 );
 
 /** Computes the sum of multiple positive and negative blinding factors.
