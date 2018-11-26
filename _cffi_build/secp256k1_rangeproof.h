@@ -345,31 +345,3 @@ int secp256k1_rangeproof_info(
 );
 
 
-
-/** Parse a public key object to a commitment object.
- *  
- *
- *  Returns: 1 if input contains a valid commitment.
- *  Args: ctx:      a secp256k1 context object.
- *  Out:  commit:   pointer to the output commitment object
- *  In:   input:    pointer to a pubkey object
- */
-int secp256k1_pedersen_commitment_parse_from_pubkey(
-    const secp256k1_context* ctx,
-    secp256k1_pedersen_commitment* commit,
-    secp256k1_pubkey* pubkey
-);
-
-
-/** Parse a public key object to a commitment object.
- *  
- *
- *  Returns: 1 if input contains a valid commitment.
- *  Args: ctx:      a secp256k1 context object.
- *  Out:  commit:   pointer to the output commitment object
- *  In:   input:    pointer to a pubkey object
- */
-int secp256k1_pedersen_commitment_save_to_pubkey(
-    secp256k1_pubkey* pubkey,
-    secp256k1_pedersen_commitment* commit
-);
