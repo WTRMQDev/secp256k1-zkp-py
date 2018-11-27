@@ -17,6 +17,8 @@ typedef int (*secp256k1_nonce_function)(
     unsigned int attempt
 );
 
+typedef struct secp256k1_scratch_space_struct secp256k1_scratch_space;
+
 #define SECP256K1_FLAGS_TYPE_MASK ...
 #define SECP256K1_FLAGS_TYPE_CONTEXT ...
 #define SECP256K1_FLAGS_TYPE_COMPRESSION ...
@@ -167,4 +169,13 @@ int secp256k1_ec_pubkey_combine(
     secp256k1_pubkey *out,
     const secp256k1_pubkey * const * ins,
     size_t n
+);
+
+secp256k1_scratch_space* secp256k1_scratch_space_create(
+    const secp256k1_context* ctx,
+    size_t max_size
+);
+
+void secp256k1_scratch_space_destroy(
+    secp256k1_scratch_space* scratch
 );

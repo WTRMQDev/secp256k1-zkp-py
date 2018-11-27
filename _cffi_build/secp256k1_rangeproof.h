@@ -10,8 +10,11 @@
  *  representation, so they can be memcmp'ed.
  */
 typedef struct {
-    unsigned char data[33];
+    unsigned char data[64];
 } secp256k1_generator;
+
+extern const secp256k1_generator secp256k1_generator_const_g;
+extern const secp256k1_generator secp256k1_generator_const_h;
 
 /** Parse a 33-byte generator byte sequence into a generator object.
  *
@@ -81,7 +84,7 @@ int secp256k1_generator_generate_blinded(
 
 
 typedef struct {
-    unsigned char data[33];
+    unsigned char data[64];
 } secp256k1_pedersen_commitment;
 
 
@@ -131,7 +134,8 @@ int secp256k1_pedersen_commit(
   secp256k1_pedersen_commitment *commit,
   const unsigned char *blind,
   uint64_t value,
-  const secp256k1_generator *gen
+  const secp256k1_generator *value_gen,
+  const secp256k1_generator *blind_gen
 );
 
 /** Computes the sum of multiple positive and negative blinding factors.
@@ -345,31 +349,3 @@ int secp256k1_rangeproof_info(
 );
 
 
-
-/** Parse a public key object to a commitment object.
- *  
- *
- *  Returns: 1 if input contains a valid commitment.
- *  Args: ctx:      a secp256k1 context object.
- *  Out:  commit:   pointer to the output commitment object
- *  In:   input:    pointer to a pubkey object
- */
-int secp256k1_pedersen_commitment_parse_from_pubkey(
-    const secp256k1_context* ctx,
-    secp256k1_pedersen_commitment* commit,
-    secp256k1_pubkey* pubkey
-);
-
-
-/** Parse a public key object to a commitment object.
- *  
- *
- *  Returns: 1 if input contains a valid commitment.
- *  Args: ctx:      a secp256k1 context object.
- *  Out:  commit:   pointer to the output commitment object
- *  In:   input:    pointer to a pubkey object
- */
-int secp256k1_pedersen_commitment_save_to_pubkey(
-    secp256k1_pubkey* pubkey,
-    secp256k1_pedersen_commitment* commit
-);

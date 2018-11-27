@@ -290,13 +290,13 @@ class PublicKey(Base, ECDSA):
     def to_pedersen_commitment(self, flags=ALL_FLAGS, ctx=None, blinded_generator=None):
         """Generate pedersen commitment r*G+0*H from r*G"""
         assert self.public_key
-
+       
+        point = ffi.new('secp256k1_point *')
         commitment = ffi.new('secp256k1_pedersen_commitment *')
 
-        res = lib.secp256k1_pedersen_commitment_parse_from_pubkey(
-            self.ctx, commitment, self.public_key)
-        if not res:
-            raise Exception('failed to create commitment')
+        lib.secp256k1_points_cast_pubkey_to_point(
+            self.ctx, self.public_key, point)
+        lib.secp256k1_points_cast_point_to_pedersen_commitment(point, commitment)
 
         return PedersenCommitment(commitment, raw=False, flags=flags, ctx=ctx, blinded_generator=blinded_generator)
 
@@ -448,6 +448,8 @@ class GeneratorOnCurve(Base):
                 self.generator = generator
         else:
             self.generator = None
+        self.bulletproof_generators = None
+        self.bullteproof_generators_num = None
 
     def serialize(self):
         assert self.generator, "No generator defined"
@@ -492,9 +494,36 @@ class GeneratorOnCurve(Base):
       self.generator = generator
       return generator     
 
+    @property
+    def bulletproof_ready(self):
+      return bool(self.bulletproof_generators)
+
+    def initialise_bulletproof_generators(self, generators_num):
+      if not isinstance(generators_num, int):
+            raise Exception("Generators_num should be integer, got %s (%s)"%(type(generators_num), generators_num))
+
+      bp_generators = ffi.new('secp256k1_bulletproof_generators *')
+
+      bp_generators = lib.secp256k1_bulletproof_generators_create(self.ctx, self.generator, generators_num)
+      
+      if bp_generators==ffi.NULL:
+            raise Exception("Initialisation has failed")
+
+      self.bulletproof_generators = bp_generators
+      self.bullteproof_generators_num = generators_num
+
+    def __del__(self):
+      if self.bulletproof_ready:
+        lib.secp256k1_bulletproof_generators_destroy(self.ctx,  self.bulletproof_generators)
+        self.bulletproof_generators = None
+        self.bullteproof_generators_num = None
+
 
 
 class PedersenCommitment(Base):
+
+    default_blinding_generator = lib.secp256k1_generator_const_g
+
     # additional_generator is (generator, is_raw?) tuple
     def __init__(self, commitment=None, raw=False, flags=ALL_FLAGS, ctx=None, blinded_generator=None):
         Base.__init__(self, ctx, flags)
@@ -540,7 +569,7 @@ class PedersenCommitment(Base):
         self.commitment = commitment
         return commitment
 
-    def create(self, value, blinding_factor):
+    def create(self, value, blinding_factor, blinding_generator=None):
         assert self.blinded_generator
         if not isinstance( blinding_factor, bytes) or not len(blinding_factor)==32:
             raise TypeError('blinding_factor should be 32 bytes')
@@ -549,10 +578,15 @@ class PedersenCommitment(Base):
             raise TypeError('blinding_factor should be 32 bytes')
         self.value = value
         commitment = ffi.new('secp256k1_pedersen_commitment *')
+        if not blinding_generator:
+          bg = [PedersenCommitment.default_blinding_generator]
+        else:
+          bg = blinding_generator.generator
 
         res = lib.secp256k1_pedersen_commit( self.ctx, 
         commitment, blinding_factor, value, 
-        self.blinded_generator.generator
+        self.blinded_generator.generator,
+        bg
         ) 
         if res:
           self.commitment=commitment
@@ -585,13 +619,13 @@ class PedersenCommitment(Base):
         """NOTE if value or blinding factor both are non-zero result of this function is not public key, cause it hasn't private key"""
         assert self.commitment
 
+        point = ffi.new('secp256k1_point *')
         pubkey = ffi.new('secp256k1_pubkey *')
 
-        res = lib.secp256k1_pedersen_commitment_save_to_pubkey(pubkey, self.commitment)
-        if not res:
-            raise Exception('failed to create pubkey')
+        lib.secp256k1_points_cast_pedersen_commitment_to_point(self.commitment, point)
+        lib.secp256k1_points_cast_point_to_pubkey(point, pubkey)
 
-        return PublicKey(pubkey, raw=False, ctx=self.ctx)
+        return PublicKey(pubkey, raw=False)
 
 class RangeProof(Base):
   def __init__(self, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
@@ -651,8 +685,6 @@ class RangeProof(Base):
     return self.proof
             
 
-
-
   def info(self):
     exp, mantissa = [ffi.new("int *") for i in range(2)]
     min_value, max_value = [ffi.new("uint64_t *") for i in range(2)]
@@ -662,6 +694,79 @@ class RangeProof(Base):
               )
     return exp[0], mantissa[0], min_value[0], max_value[0]
 
+
+class BulletProof(Base):
+  scratch = None
+  def __init__(self, generator=None, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
+    Base.__init__(self, ctx, flags)
+    if proof is not None:
+      assert isinstance(proof, bytes)
+    self.proof = proof
+    if pedersen_commitment is not None:
+      assert isinstance(pedersen_commitment, PedersenCommitment)
+    self.pedersen_commitment = pedersen_commitment
+    if additional_data is not None:
+      assert isinstance(additional_data, bytes)
+    self.additional_data = additional_data
+    if generator is not None:
+      assert isinstance(generator, GeneratorOnCurve)
+    if not generator.bulletproof_ready:
+      raise Exception("Generator is not bulletproof ready")
+    self.generator = generator
+    if not BulletProof.scratch:
+      BulletProof = lib.secp256k1_scratch_space_create(self.ctx, 1024**2)
+
+
+  def verify(self, min_value, concealed_bits=64):
+    assert self.pedersen_commitment
+    assert self.proof
+    assert self.pedersen_commitment.blinded_generator.generator
+    assert self.pedersen_commitment.blinded_generator.generator == self.generator
+    (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
+    min_value, max_value = ffi.new("uint64_t *"),ffi.new("uint64_t *")
+
+    res = lib.secp256k1_bulletproof_rangeproof_verify(
+            self.ctx, BulletProof.scratch, self.generator.bulletproof_generators,
+            self.proof, len(self.proof), [min_value], [self.pedersen_commitment], 1,
+            concealed_bits, self.generator.generator, ad, adl)
+    return res
+
+  def rewind(self):
+    pass #TODO
+
+  def _sign(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
+    assert self.pedersen_commitment and self.pedersen_commitment.ready_to_sign()
+
+    nonce = nonce if nonce else os.urandom(32)
+    if not isinstance(nonce, bytes) or len(nonce)!=32:
+      raise TypeError('nonce should be 32 bytes')
+
+    _len = 5134
+    proof_buffer = ffi.new('unsigned char [%d]' % _len)
+    proof_buffer_len = ffi.new("size_t *")
+    proof_buffer_len[0] = _len 
+
+    (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
+    res = lib.secp256k1_bulletproof_rangeproof_prove( 
+            self.ctx, BulletProof.scratch, self.generator.bulletproof_generators, proof_buffer, proof_buffer_len,
+            ffi.NULL, ffi.NULL, ffi.NULL,
+            [self.pedersen_commitment.value], [min_value],
+            [self.pedersen_commitment.blinding_factor], 
+            [self.pedersen_commitment.commitment],
+            1, self.generator.generator, concealed_bits,
+            nonce, ffi.null, 
+            ad, adl,
+            ffi.cast("char *", 0)
+            ) 
+    if not res:
+      raise Exception("Cant generate rangeproof")
+    self.proof = bytes(ffi.buffer(proof_buffer, proof_buffer_len[0])) 
+    self.nonce = nonce
+    return self.proof
+            
+
+  def info(self):
+    pass #TODO
 
         
 

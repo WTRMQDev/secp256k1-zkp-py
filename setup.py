@@ -34,7 +34,7 @@ from setup_support import absolute, build_flags, has_system_lib
 
 # Version of libsecp256k1 to download if none exists in the `libsecp256k1`
 # directory
-LIB_TARBALL_URL = "https://github.com/WTRMQDev/secp256k1_zkp/archive/dc77c2830bf29f9bea56c78e2b96cecc9c3f7974.tar.gz"
+LIB_TARBALL_URL = "https://github.com/SlurmDiver/secp256k1-zkp/archive/f581a0844447f7ee45987441a2fb8cdc3d8260bb.tar.gz"
 
 
 # We require setuptools >= 3.3
@@ -195,6 +195,12 @@ class build_clib(_build_clib):
             "--enable-module-ecdh",
             "--enable-module-generator",
             "--enable-module-rangeproof",
+            "--enable-module-commitment",
+            "--enable-module-points",
+            "--enable-module-bulletproof",
+            "--disable-tests",
+            "--disable-exhaustive-tests",
+            "--disable-benchmark",
             "--prefix",
             os.path.abspath(self.build_clib),
         ]
@@ -252,7 +258,7 @@ class develop(_develop):
 
 setup(
     name="secp256k1_zkp",
-    version="0.14.0",
+    version="0.14.1",
 
     description='FFI bindings to libsecp256k1_zkp',
     url='https://github.com/WTRMQDev/secp256k1-zkp-py',
