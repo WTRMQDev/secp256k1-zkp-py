@@ -1,6 +1,6 @@
 import os
 import sys
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from itertools import combinations
 
 from cffi import FFI, VerificationError
@@ -34,14 +34,14 @@ def _mk_ffi(sources, name="_libsecp256k1", bundled=True, **kwargs):
 
 _base = [Source(absolute("_cffi_build/secp256k1.h"), "#include <secp256k1.h>", )]
 
-_modules = {
-    'ecdh': Source(absolute("_cffi_build/secp256k1_ecdh.h"), "#include <secp256k1_ecdh.h>", ),
-    'recovery': Source(absolute("_cffi_build/secp256k1_recovery.h"), "#include <secp256k1_recovery.h>", ),
-#    'schnorr': Source(absolute("_cffi_build/secp256k1_schnorr.h"), "#include <secp256k1_schnorr.h>", ),
-    'rangeproof': Source(absolute("_cffi_build/secp256k1_rangeproof.h"), "#include <secp256k1_rangeproof.h>", ),
-    'points': Source(absolute("_cffi_build/secp256k1_points.h"), "#include <secp256k1_points.h>", ),
-    'bulltetproofs': Source(absolute("_cffi_build/secp256k1_bulletproofs.h"), "#include <secp256k1_bulletproofs.h>", ),
-}
+_modules = OrderedDict([
+    ('ecdh', Source(absolute("_cffi_build/secp256k1_ecdh.h"), "#include <secp256k1_ecdh.h>", )),
+    ('recovery', Source(absolute("_cffi_build/secp256k1_recovery.h"), "#include <secp256k1_recovery.h>", )),
+#    ('schnorr': Source(absolute("_cffi_build/secp256k1_schnorr.h"), "#include <secp256k1_schnorr.h>", ),
+    ('rangeproof', Source(absolute("_cffi_build/secp256k1_rangeproof.h"), "#include <secp256k1_rangeproof.h>", )),
+    ('points', Source(absolute("_cffi_build/secp256k1_points.h"), "#include <secp256k1_points.h>", )),
+    ('bulltetproofs', Source(absolute("_cffi_build/secp256k1_bulletproofs.h"), "#include <secp256k1_bulletproofs.h>", )),
+])
 
 
 ffi = None
