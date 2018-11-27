@@ -34,7 +34,7 @@ from setup_support import absolute, build_flags, has_system_lib
 
 # Version of libsecp256k1 to download if none exists in the `libsecp256k1`
 # directory
-LIB_TARBALL_URL = "https://github.com/SlurmDiver/secp256k1_zkp/archive/f581a0844447f7ee45987441a2fb8cdc3d8260bb.tar.gz"
+LIB_TARBALL_URL = "https://github.com/SlurmDiver/secp256k1-zkp/archive/f581a0844447f7ee45987441a2fb8cdc3d8260bb.tar.gz"
 
 
 # We require setuptools >= 3.3
