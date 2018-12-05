@@ -444,8 +444,12 @@ class GeneratorOnCurve(Base):
             else:
                 if not isinstance(generator, ffi.CData):
                     raise TypeError('generator must be an internal object')
-                assert ffi.typeof(generator) is ffi.typeof('secp256k1_generator *')
-                self.generator = generator
+                if ffi.typeof(generator) is ffi.typeof('secp256k1_generator *'):
+                  self.generator = generator
+                elif ffi.typeof(generator) is ffi.typeof('secp256k1_generator'):
+                  self.generator = ffi.new('secp256k1_generator *', generator)
+                else:
+                  raise Exception("Unknown generator type")
         else:
             self.generator = None
         self.bulletproof_generators = None
@@ -502,8 +506,6 @@ class GeneratorOnCurve(Base):
       if not isinstance(generators_num, int):
             raise Exception("Generators_num should be integer, got %s (%s)"%(type(generators_num), generators_num))
 
-      bp_generators = ffi.new('secp256k1_bulletproof_generators *')
-
       bp_generators = lib.secp256k1_bulletproof_generators_create(self.ctx, self.generator, generators_num)
       
       if bp_generators==ffi.NULL:
@@ -519,13 +521,16 @@ class GeneratorOnCurve(Base):
         self.bullteproof_generators_num = None
 
 
+default_blinding_generator = GeneratorOnCurve(generator = lib.secp256k1_generator_const_g)
+default_blinding_generator.initialise_bulletproof_generators(128)
+default_value_generator = GeneratorOnCurve(generator = lib.secp256k1_generator_const_h)
 
 class PedersenCommitment(Base):
 
-    default_blinding_generator = lib.secp256k1_generator_const_g
-
     # additional_generator is (generator, is_raw?) tuple
-    def __init__(self, commitment=None, raw=False, flags=ALL_FLAGS, ctx=None, blinded_generator=None):
+    def __init__(self, commitment=None, raw=False, flags=ALL_FLAGS, ctx=None, 
+                       blinding_generator = default_blinding_generator,
+                       value_generator = default_value_generator):
         Base.__init__(self, ctx, flags)
         if commitment is not None:
             if raw:
@@ -539,9 +544,11 @@ class PedersenCommitment(Base):
                 self.commitment = commitment
         else:
             self.commitment = None
-        if blinded_generator:
-          assert isinstance(blinded_generator, GeneratorOnCurve)
-        self.blinded_generator=blinded_generator
+        assert isinstance(blinding_generator, GeneratorOnCurve)
+        assert isinstance(value_generator, GeneratorOnCurve)
+        self.blinding_generator = blinding_generator
+        self.value_generator = value_generator
+
 
     def serialize(self):
         assert self.commitment, "No commitment key defined"
@@ -569,8 +576,7 @@ class PedersenCommitment(Base):
         self.commitment = commitment
         return commitment
 
-    def create(self, value, blinding_factor, blinding_generator=None):
-        assert self.blinded_generator
+    def create(self, value, blinding_factor):
         if not isinstance( blinding_factor, bytes) or not len(blinding_factor)==32:
             raise TypeError('blinding_factor should be 32 bytes')
         self.blinding_factor = blinding_factor
@@ -578,23 +584,19 @@ class PedersenCommitment(Base):
             raise TypeError('blinding_factor should be 32 bytes')
         self.value = value
         commitment = ffi.new('secp256k1_pedersen_commitment *')
-        if not blinding_generator:
-          bg = [PedersenCommitment.default_blinding_generator]
-        else:
-          bg = blinding_generator.generator
+
 
         res = lib.secp256k1_pedersen_commit( self.ctx, 
         commitment, blinding_factor, value, 
-        self.blinded_generator.generator,
-        bg
-        ) 
+        self.value_generator.generator,
+        self.blinding_generator.generator) 
         if res:
           self.commitment=commitment
         return self.commitment
 
 
     def ready_to_sign(self):
-      return self.blinded_generator.generator and self.blinding_factor and self.value
+      return self.blinding_factor and self.value
 
 
     def verify_sum(self, positive_commitments, negative_commitments):
@@ -643,14 +645,14 @@ class RangeProof(Base):
   def verify(self, _range=(0,2**64-1) ):
     assert self.pedersen_commitment
     assert self.proof
-    assert self.pedersen_commitment.blinded_generator.generator
+    assert self.pedersen_commitment.value_generator == default_value_generator
     (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
     min_value, max_value = ffi.new("uint64_t *"), ffi.new("uint64_t *")
     res = lib.secp256k1_rangeproof_verify(
             self.ctx, min_value, max_value,
             self.pedersen_commitment.commitment,
             self.proof, len(self.proof),
-            ad, adl, self.pedersen_commitment.blinded_generator.generator)
+            ad, adl, self.pedersen_commitment.blinding_generator.generator)
     return res
 
   def rewind(self):
@@ -677,7 +679,7 @@ class RangeProof(Base):
             self.pedersen_commitment.value, 
             ffi.cast("char *", 0), 0,
             ad, adl, 
-            self.pedersen_commitment.blinded_generator.generator)
+            self.pedersen_commitment.blinding_generator.generator)
     if not res:
       raise Exception("Cant generate rangeproof")
     self.proof = bytes(ffi.buffer(proof_buffer, proof_buffer_len[0])) 
@@ -696,46 +698,87 @@ class RangeProof(Base):
 
 
 class BulletProof(Base):
-  scratch = None
-  def __init__(self, generator=None, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
+  scratch = {}
+
+
+  def __init__(self, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
     Base.__init__(self, ctx, flags)
     if proof is not None:
       assert isinstance(proof, bytes)
     self.proof = proof
     if pedersen_commitment is not None:
       assert isinstance(pedersen_commitment, PedersenCommitment)
+      assert pedersen_commitment.blinding_generator.bulletproof_ready, "Generator is not bulletproof ready"
     self.pedersen_commitment = pedersen_commitment
     if additional_data is not None:
       assert isinstance(additional_data, bytes)
     self.additional_data = additional_data
-    if generator is not None:
-      assert isinstance(generator, GeneratorOnCurve)
-    if not generator.bulletproof_ready:
-      raise Exception("Generator is not bulletproof ready")
-    self.generator = generator
-    if not BulletProof.scratch:
-      BulletProof = lib.secp256k1_scratch_space_create(self.ctx, 1024**2)
+    if not 'base' in self.scratch:
+      self.scratch['base'] = lib.secp256k1_scratch_space_create(self.ctx, 1024**2)
 
 
-  def verify(self, min_value, concealed_bits=64):
+  def verify(self, min_value=0, concealed_bits=64):
     assert self.pedersen_commitment
     assert self.proof
-    assert self.pedersen_commitment.blinded_generator.generator
-    assert self.pedersen_commitment.blinded_generator.generator == self.generator
     (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
-    min_value, max_value = ffi.new("uint64_t *"),ffi.new("uint64_t *")
+    min_value = ffi.new("uint64_t *", min_value)
 
     res = lib.secp256k1_bulletproof_rangeproof_verify(
-            self.ctx, BulletProof.scratch, self.generator.bulletproof_generators,
-            self.proof, len(self.proof), [min_value], [self.pedersen_commitment], 1,
-            concealed_bits, self.generator.generator, ad, adl)
+            self.ctx, self.scratch['base'], 
+            self.pedersen_commitment.blinding_generator.bulletproof_generators,
+            self.proof, len(self.proof), min_value, self.pedersen_commitment.commitment, 1,
+            concealed_bits, 
+            self.pedersen_commitment.value_generator.generator,
+            ad, adl)
     return res
+
+  @classmethod
+  def batch_verify(cls, bullet_proofs, min_value=0, concealed_bits=64):
+    assert len(bullet_proofs)
+    for index, bp in enumerate(bullet_proofs):
+      assert bp.proof, "No proof in %d element"
+      assert bp.pedersen_commitment, "No pedersen commitment in %d element"
+    n = len(bullet_proofs)
+
+    _min_values = ffi.new("uint64_t []", [min_value]*n)
+    min_values = ffi.cast("uint64_t * *", _min_values)
+      
+
+    proofs = ffi.new("unsigned char *[]", n)
+    keep_alive_proofs = []
+    commits = ffi.new("secp256k1_pedersen_commitment *[]", n)
+    keep_alive_commits = []
+    ads = ffi.new("unsigned char *[]", n)
+    keep_alive_ads = []
+    adls = ffi.new("size_t []", n)
+    for i,p in enumerate(bullet_proofs):
+      keep_alive_proofs.append(ffi.new("unsigned char[]",p.proof))
+      proofs[i]=keep_alive_proofs[i]
+      keep_alive_commits.append(p.pedersen_commitment.commitment)
+      commits[i]=keep_alive_commits[i]
+      keep_alive_ads.append(ffi.new("unsigned char[]",p.additional_data))
+      ads[i]=keep_alive_ads[i]
+      adls[i]=len(p.additional_data)
+
+    example = bullet_proofs[0]
+
+    res = lib.secp256k1_bulletproof_rangeproof_verify_multi(
+            example.ctx, cls.scratch['base'], 
+            example.pedersen_commitment.blinding_generator.bulletproof_generators,
+            proofs, n, len(example.proof), min_values, commits, 1,
+            concealed_bits, 
+            example.pedersen_commitment.value_generator.generator,
+            ads, adls)
+    return res
+    
+   
 
   def rewind(self):
     pass #TODO
 
   def _sign(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
     assert self.pedersen_commitment and self.pedersen_commitment.ready_to_sign()
+    assert 0<concealed_bits<=64, "Concealed_bits should be  >0 and <=64"
 
     nonce = nonce if nonce else os.urandom(32)
     if not isinstance(nonce, bytes) or len(nonce)!=32:
@@ -745,16 +788,20 @@ class BulletProof(Base):
     proof_buffer = ffi.new('unsigned char [%d]' % _len)
     proof_buffer_len = ffi.new("size_t *")
     proof_buffer_len[0] = _len 
+    blind = ffi.new('unsigned char[32]', self.pedersen_commitment.blinding_factor)
+    blinds = ffi.new("unsigned char * *", blind)
 
     (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
     res = lib.secp256k1_bulletproof_rangeproof_prove( 
-            self.ctx, BulletProof.scratch, self.generator.bulletproof_generators, proof_buffer, proof_buffer_len,
+            self.ctx, self.scratch['base'], 
+            self.pedersen_commitment.blinding_generator.bulletproof_generators,
+            proof_buffer, proof_buffer_len,
             ffi.NULL, ffi.NULL, ffi.NULL,
             [self.pedersen_commitment.value], [min_value],
-            [self.pedersen_commitment.blinding_factor], 
-            [self.pedersen_commitment.commitment],
-            1, self.generator.generator, concealed_bits,
-            nonce, ffi.null, 
+            blinds, ffi.NULL, 1, 
+            self.pedersen_commitment.value_generator.generator, 
+            concealed_bits,
+            nonce, ffi.NULL, 
             ad, adl,
             ffi.cast("char *", 0)
             ) 
