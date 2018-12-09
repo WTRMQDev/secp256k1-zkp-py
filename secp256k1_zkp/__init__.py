@@ -984,6 +984,7 @@ def _tweak_public(inst, func, scalar):
     newpub = PublicKey(inst.serialize(), raw=True)
 
     res = func(inst.ctx, newpub.public_key, scalar)
+    newpub.serialized = None
     if not res:
         raise Exception("Tweak is out of range")
 
