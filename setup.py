@@ -258,7 +258,7 @@ class develop(_develop):
 
 setup(
     name="secp256k1_zkp",
-    version="0.14.2",
+    version="0.14.3",
 
     description='FFI bindings to libsecp256k1_zkp',
     url='https://github.com/WTRMQDev/secp256k1-zkp-py',
