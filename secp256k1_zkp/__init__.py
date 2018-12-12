@@ -916,6 +916,25 @@ class Point(Base):
         else:
             raise TypeError("Cant add point and %s"%pubkey2.__class__)
 
+    def copy(self):
+      return Point(raw_point=self.serialize(), ctx=self.ctx)
+
+    def __mul__(self, multiplier):
+        bm = b""
+        if isinstance(multiplier, int):
+          assert (multiplier>0) and (multiplier<(2**256)), "Point multiplier should be in range [1, 2**256-1]"
+          bm = multiplier.to_bytes(32,"big")
+        elif isinstance(multiplier, bytes):
+          assert len(multiplier)==32, "Point multiplier should be 32 bytes scalar"
+          bm = multiplier
+        else:
+          raise TypeError("Points can be multiplied only by integers and bytes")
+        m_buff = ffi.new("unsigned char[32]",bm)
+        ret = self.copy()
+        assert lib.secp256k1_point_mul(ret.ctx, ret.point, m_buff);
+        ret.serialized = None
+        return ret
+
     def to_pedersen_commitment(self, flags=ALL_FLAGS, ctx=None, blinding_generator=default_blinding_generator):
         """Generate pedersen commitment r*G+0*H from r*G"""
         assert self.point
