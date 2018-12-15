@@ -304,7 +304,7 @@ class PublicKey(Base, ECDSA):
         else:
             raise TypeError("Cant add pubkey and %s"%pubkey2.__class__)
 
-    def to_pedersen_commitment(self, flags=ALL_FLAGS, ctx=None, blinding_generator=None):
+    def to_pedersen_commitment(self, flags=ALL_FLAGS, ctx=None, blinding_generator=None, value_generator=None):
         """Generate pedersen commitment r*G+0*H from r*G"""
         assert self.public_key
        
@@ -314,8 +314,14 @@ class PublicKey(Base, ECDSA):
         lib.secp256k1_points_cast_pubkey_to_point(
             self.ctx, self.public_key, point)
         lib.secp256k1_points_cast_point_to_pedersen_commitment(point, commitment)
-
-        return PedersenCommitment(commitment, raw=False, flags=flags, ctx=ctx, blinding_generator=blinding_generator)
+        kwargs = {'raw':False, 'flags':flags, 'ctx':ctx}
+        #default generators will be determined much later, so now if generators are 
+        #not provided we do not pass them to PC intialiser where defaults will be substituted 
+        if blinding_generator:
+          kwargs['blinding_generator']=blinding_generator
+        if value_generator:
+          kwargs['value_generator']=value_generator
+        return PedersenCommitment(commitment, **kwargs)
 
 
 def _int_to_bytes(n, length, endianess='big'):
@@ -670,14 +676,14 @@ class RangeProof(Base):
   def verify(self, _range=(0,2**64-1) ):
     assert self.pedersen_commitment
     assert self.proof
-    assert self.pedersen_commitment.value_generator == default_value_generator
+    assert self.pedersen_commitment.blinding_generator == default_blinding_generator, "Rangeproof may be generated only with default blinding gen (value gen may vary)"
     (ad,adl)= (self.additional_data, len(self.additional_data)) if self.additional_data else (ffi.cast("char *", 0), 0)
     min_value, max_value = ffi.new("uint64_t *"), ffi.new("uint64_t *")
     res = lib.secp256k1_rangeproof_verify(
             self.ctx, min_value, max_value,
             self.pedersen_commitment.commitment,
             self.proof, len(self.proof),
-            ad, adl, self.pedersen_commitment.blinding_generator.generator)
+            ad, adl, self.pedersen_commitment.value_generator.generator)
     return res
 
   def rewind(self):
@@ -685,7 +691,7 @@ class RangeProof(Base):
 
   def _sign(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
     assert self.pedersen_commitment and self.pedersen_commitment.ready_to_sign()
-
+    assert self.pedersen_commitment.blinding_generator == default_blinding_generator, "Rangeproof may be generated only with default blinding gen (value gen may vary)"
     nonce = nonce if nonce else os.urandom(32)
     if not isinstance(nonce, bytes) or len(nonce)!=32:
       raise TypeError('nonce should be 32 bytes')
@@ -704,7 +710,7 @@ class RangeProof(Base):
             self.pedersen_commitment.value, 
             ffi.cast("char *", 0), 0,
             ad, adl, 
-            self.pedersen_commitment.blinding_generator.generator)
+            self.pedersen_commitment.value_generator.generator)
     if not res:
       raise Exception("Cant generate rangeproof")
     self.proof = bytes(ffi.buffer(proof_buffer, proof_buffer_len[0])) 
@@ -803,13 +809,13 @@ class BulletProof(Base):
 
   def _sign(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
     assert self.pedersen_commitment and self.pedersen_commitment.ready_to_sign()
-    assert 0<concealed_bits<=64, "Concealed_bits should be  >0 and <=64"
+    assert (concealed_bits in [2,4,8,16,32,64]), "Concealed_bits should be  in [2,4,8,16,32,64]"
 
     nonce = nonce if nonce else os.urandom(32)
     if not isinstance(nonce, bytes) or len(nonce)!=32:
       raise TypeError('nonce should be 32 bytes')
 
-    _len = 5134
+    _len = 676
     proof_buffer = ffi.new('unsigned char [%d]' % _len)
     proof_buffer_len = ffi.new("size_t *")
     proof_buffer_len[0] = _len 
@@ -915,6 +921,25 @@ class Point(Base):
             return self + (-point2)
         else:
             raise TypeError("Cant add point and %s"%pubkey2.__class__)
+
+    def copy(self):
+      return Point(raw_point=self.serialize(), ctx=self.ctx)
+
+    def __mul__(self, multiplier):
+        bm = b""
+        if isinstance(multiplier, int):
+          assert (multiplier>0) and (multiplier<(2**256)), "Point multiplier should be in range [1, 2**256-1]"
+          bm = _int_to_bytes(multiplier, 32,"big")
+        elif isinstance(multiplier, bytes):
+          assert len(multiplier)==32, "Point multiplier should be 32 bytes scalar"
+          bm = multiplier
+        else:
+          raise TypeError("Points can be multiplied only by integers and bytes")
+        m_buff = ffi.new("unsigned char[32]",bm)
+        ret = self.copy()
+        assert lib.secp256k1_point_mul(ret.ctx, ret.point, m_buff);
+        ret.serialized = None
+        return ret
 
     def to_pedersen_commitment(self, flags=ALL_FLAGS, ctx=None, blinding_generator=default_blinding_generator):
         """Generate pedersen commitment r*G+0*H from r*G"""
