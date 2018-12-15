@@ -809,13 +809,13 @@ class BulletProof(Base):
 
   def _sign(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
     assert self.pedersen_commitment and self.pedersen_commitment.ready_to_sign()
-    assert 0<concealed_bits<=64, "Concealed_bits should be  >0 and <=64"
+    assert (concealed_bits in [2,4,8,16,32,64]), "Concealed_bits should be  in [2,4,8,16,32,64]"
 
     nonce = nonce if nonce else os.urandom(32)
     if not isinstance(nonce, bytes) or len(nonce)!=32:
       raise TypeError('nonce should be 32 bytes')
 
-    _len = 5134
+    _len = 676
     proof_buffer = ffi.new('unsigned char [%d]' % _len)
     proof_buffer_len = ffi.new("size_t *")
     proof_buffer_len[0] = _len 
