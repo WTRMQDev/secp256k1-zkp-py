@@ -929,7 +929,7 @@ class Point(Base):
         bm = b""
         if isinstance(multiplier, int):
           assert (multiplier>0) and (multiplier<(2**256)), "Point multiplier should be in range [1, 2**256-1]"
-          bm = multiplier.to_bytes(32,"big")
+          bm = _int_to_bytes(multiplier, 32,"big")
         elif isinstance(multiplier, bytes):
           assert len(multiplier)==32, "Point multiplier should be 32 bytes scalar"
           bm = multiplier
