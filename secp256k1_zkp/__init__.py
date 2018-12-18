@@ -296,7 +296,7 @@ class PublicKey(Base, ECDSA):
         serialized=self.serialize()
         first_byte, remainder = serialized[:1], serialized[1:]
         first_byte = {b'\x03':b'\x02', b'\x02':b'\x03'}[first_byte]
-        return PublicKey(first_byte+ remainder, raw=True)
+        return PublicKey(first_byte+ remainder, raw=True, ctx=self.ctx)
 
     def __sub__(self, pubkey2):
         if isinstance(pubkey2, PublicKey):
@@ -314,7 +314,7 @@ class PublicKey(Base, ECDSA):
         lib.secp256k1_points_cast_pubkey_to_point(
             self.ctx, self.public_key, point)
         lib.secp256k1_points_cast_point_to_pedersen_commitment(point, commitment)
-        kwargs = {'raw':False, 'flags':flags, 'ctx':ctx}
+        kwargs = {'raw':False, 'flags':flags, 'ctx':ctx if ctx else self.ctx}
         #default generators will be determined much later, so now if generators are 
         #not provided we do not pass them to PC intialiser where defaults will be substituted 
         if blinding_generator:
@@ -438,18 +438,18 @@ class PrivateKey(Base, ECDSA):
     def __add__(self, privkey2):
       if not isinstance(privkey2, PrivateKey):
         raise TypeError("Cant summarize privkey and %s"%privkey2.__class__)
-      return PrivateKey(self.tweak_add(privkey2.private_key), raw = True )
+      return PrivateKey(self.tweak_add(privkey2.private_key), raw = True, ctx=self.ctx)
 
     def __mul__(self, privkey2):
       if isinstance(privkey2, PrivateKey):
-        return PrivateKey(self.tweak_mul(privkey2.private_key), raw = True )
+        return PrivateKey(self.tweak_mul(privkey2.private_key), raw = True, ctx=self.ctx)
       else:
-        return PrivateKey(self.tweak_mul(_int_to_bytes(privkey2, 32)), raw = True  )
+        return PrivateKey(self.tweak_mul(_int_to_bytes(privkey2, 32)), raw = True, ctx=self.ctx)
 
     def __neg__(self):
       order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 #order of secp256k1 group
       neg_num=_int_to_bytes(order-_bytes_to_int(self.private_key, 'big'), 32, 'big')
-      return PrivateKey(neg_num, raw=True)
+      return PrivateKey(neg_num, raw=True, ctx=self.ctx)
 
     def __sub__(self, privkey2):
       return self + (-privkey2)
@@ -658,7 +658,7 @@ class PedersenCommitment(Base):
         lib.secp256k1_points_cast_pedersen_commitment_to_point(self.commitment, point)
         lib.secp256k1_points_cast_point_to_pubkey(point, pubkey)
 
-        return PublicKey(pubkey, raw=False)
+        return PublicKey(pubkey, raw=False, ctx = self.ctx)
 
 class RangeProof(Base):
   def __init__(self, proof=None, pedersen_commitment=None, additional_data=None, flags=ALL_FLAGS, ctx=None):
@@ -914,7 +914,7 @@ class Point(Base):
         serialized=self.serialize()
         first_byte, remainder = serialized[:1], serialized[1:]
         first_byte = {b'\x81':b'\x80', b'\x80':b'\x81'}[first_byte]
-        return Point(raw_point = first_byte+ remainder)
+        return Point(raw_point = first_byte+ remainder, ctx=self.ctx)
 
     def __sub__(self, point2):
         if isinstance(point2, Point):
@@ -946,21 +946,21 @@ class Point(Base):
         assert self.point
         commitment = ffi.new('secp256k1_pedersen_commitment *')
         lib.secp256k1_points_cast_point_to_pedersen_commitment(self.point, commitment)
-        return PedersenCommitment(commitment, raw=False, flags=flags, ctx=ctx, blinding_generator=blinding_generator)
+        return PedersenCommitment(commitment, raw=False, flags=flags, ctx=ctx if ctx else self.ctx, blinding_generator=blinding_generator)
 
     def to_generator(self, flags=ALL_FLAGS, ctx=None):
         """Generate generator r*G"""
         assert self.point
         generator = ffi.new('secp256k1_generator *')
         lib.secp256k1_points_cast_point_to_generator(self.point, generator)
-        return GeneratorOnCurve(generator, raw=False, flags=flags, ctx=ctx)
+        return GeneratorOnCurve(generator, raw=False, flags=flags, ctx=ctx if ctx else self.ctx)
 
     def to_pubkey(self, flags=ALL_FLAGS, ctx=None):
         """Generate generator r*G"""
         assert self.point
         pubkey = ffi.new('secp256k1_pubkey *')
         lib.secp256k1_points_cast_point_to_pubkey(self.point, pubkey)
-        return PublicKey(pubkey, raw=False, flags=flags, ctx=ctx )
+        return PublicKey(pubkey, raw=False, flags=flags, ctx=ctx if ctx else self.ctx )
 
 
 def _int_to_bytes(n, length, endianess='big'):
